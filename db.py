@@ -1,4 +1,4 @@
-from datasets import load_dataset
+from dataclasses import dataclass, field
 from peft import LoraConfig
 from dataclasses import dataclass
 from optimum.neuron import NeuronHfArgumentParser as HfArgumentParser
@@ -6,23 +6,25 @@ from optimum.neuron import NeuronSFTConfig, NeuronSFTTrainer, NeuronTrainingArgu
 from torch_xla.core.xla_model import is_master_ordinal
 from optimum.neuron.models.training import NeuronModelForCausalLM
 import torch
+import json
+
 
 ds = load_dataset("boyiwei/newsqa_filtered_sorted", split="train")  # "validation" or "test" also available
 print(ds[:1])
 
 def create_convo(sample):
     system_message = (
-        #insert all of the context (i.e. you are a chatbot)
+        "You are a financial news analyst assistant. Answer questions accurately based on the provided news context."
     )
     return {
         #ADJUST BASED ON DBSCHEMA ON HUGGINGFACE
         "messages": [
             {
                 "role": "system",
-                "content": system_message.format(schema=sample["context"]),
+                "content": system_message,
             },
-            {"role": "user", "content": sample["question"]},
-            {"role": "assistant", "content": sample["answer"] + ";"},
+            {"role": "user", "content": f'question: {sample["question"]} news source:{sample["story_text"]}'},
+            {"role": "assistant", "content": sample["answer"]},
         ]
     }
 
@@ -91,3 +93,26 @@ class model_config:
 
 
 
+def main():
+    """Test the create_convo function"""
+    print("="*60)
+    print("TESTING create_convo FUNCTION")
+    print("="*60)
+    
+    # Load one sample
+    ds = load_dataset("boyiwei/newsqa_filtered_sorted", split="train")
+    sample = ds[0]
+    
+    # Apply formatting
+    formatted = create_convo(sample)
+    
+    # Print as pretty JSON
+    print("\n📄 FORMATTED OUTPUT:\n")
+    print(json.dumps(formatted, indent=2))
+    
+    print("\n" + "="*60)
+    print("Function is working correctly!")
+    print("="*60)
+
+if __name__ == "__main__":
+    main()
