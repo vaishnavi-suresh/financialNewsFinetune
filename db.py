@@ -11,76 +11,6 @@ import json
 from transformers import AutoTokenizer
 
 
-
-
-def create_convo(sample):
-    system_message = (
-        f"You are a financial news analyst assistant. Answer questions accurately based on the provided news context. This is the news article to reference: {sample['story_text']}"
-    )
-    return {
-        #ADJUST BASED ON DBSCHEMA ON HUGGINGFACE
-        "messages": [
-            {
-                "role": "system",
-                "content": system_message,
-            },
-            {"role": "user", "content": f'question: {sample["question"]}'},
-            {"role": "assistant", "content": sample["answer"]},
-        ]
-    }
-
-def finetune(data, training_args):
-    data = data.shuffle(seed=23)
-    train_dataset = data.select(range(50000))
-    eval_dataset = data.select(range(50000, 50500))
-
-    train_dataset = train_dataset.map(
-        create_convo, remove_columns=train_dataset.features, batched=False
-    )
-    eval_dataset = eval_dataset.map(
-        create_convo, remove_columns=eval_dataset.features, batched=False
-    )
-
-    tokenizer = AutoTokenizer.from_pretrained(model_config.tokenizer_id)
-
-
-
-    model = NeuronModelForCausalLM.from_pretrained(
-        model_config.model_id,
-        training_args.trn_config, 
-        torch_dtype= torch.bfloat16,
-        use_flash_attention_2=False,
-    )
-
-    lora_config = LoraConfig(
-        r=model_config.lora_r,
-        lora_alpha=model_config.lora_alpha,
-        lora_dropout=model_config.lora_dropout, 
-        target_modules=[
-            "q_proj", "k_proj", "v_proj", "o_proj",  
-            "gate_proj", "up_proj", "down_proj",      
-            "embed_tokens", "lm_head"                   
-        ]
-    )
-
-    args = training_args.to_dict()
-
-    sft_config = NeuronSFTConfig(**training_args.to_dict())
-
-    trainer = NeuronSFTTrainer(
-        args=sft_config,
-        model=model,
-        peft_config=lora_config,
-        tokenizer=tokenizer,
-        train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
-    )
-
-    trainer.train()
-    trainer.save_model("finetuned_model")
-
-
-
 @dataclass
 class model_config:
     model_id: str = field(
@@ -114,6 +44,85 @@ class model_config:
         metadata={"help": "AWS region where the secret is stored."},
     )
 
+cfg = model_config()
+
+
+def create_convo(sample):
+    system_message = (
+        f"You are a financial news analyst assistant. Answer questions accurately based on the provided news context. This is the news article to reference: {sample['story_text']}"
+    )
+    return {
+        #ADJUST BASED ON DBSCHEMA ON HUGGINGFACE
+        "messages": [
+            {
+                "role": "system",
+                "content": system_message,
+            },
+            {"role": "user", "content": f'question: {sample["question"]}'},
+            {"role": "assistant", "content": sample["answer"]},
+        ]
+    }
+
+def finetune(data, training_args):
+    data = data.shuffle(seed=23)
+    train_dataset = data.select(range(50000))
+    eval_dataset = data.select(range(50000, 50500))
+
+    train_dataset = train_dataset.map(
+        create_convo, remove_columns=train_dataset.features, batched=False
+    )
+    eval_dataset = eval_dataset.map(
+        create_convo, remove_columns=eval_dataset.features, batched=False
+    )
+
+    tokenizer = AutoTokenizer.from_pretrained(cfg.tokenizer_id)
+
+
+
+    model = NeuronModelForCausalLM.from_pretrained(
+        cfg.model_id,
+        training_args.trn_config, 
+        torch_dtype= torch.bfloat16,
+        use_flash_attention_2=False,
+    )
+
+    lora_config = LoraConfig(
+        r=cfg.lora_r,
+        lora_alpha=cfg.lora_alpha,
+        lora_dropout=cfg.lora_dropout, 
+        target_modules=[
+            "q_proj",
+            "gate_proj",
+            "v_proj",
+            "o_proj",
+            "k_proj",
+            "up_proj",
+            "down_proj",
+        ],
+        bias="none",
+        task_type="CAUSAL_LM",
+    )
+
+    args = training_args.to_dict()
+
+    sft_config = NeuronSFTConfig(**training_args.to_dict())
+
+    trainer = NeuronSFTTrainer(
+        args=sft_config,
+        model=model,
+        peft_config=lora_config,
+        tokenizer=tokenizer,
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
+    )
+
+    trainer.train()
+    trainer.save_model("finetuned_model")
+
+
+
+
+
 
 
 def main():
@@ -121,6 +130,8 @@ def main():
     print("="*60)
     print("TESTING create_convo FUNCTION")
     print("="*60)
+    cfg = model_config()
+
     
     training_args = NeuronTrainingArguments(
         output_dir="outputs",
