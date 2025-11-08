@@ -11,6 +11,7 @@ import json
 from transformers import AutoTokenizer
 
 
+
 @dataclass
 class model_config:
     model_id: str = field(
@@ -45,7 +46,19 @@ class model_config:
     )
 
 cfg = model_config()
+tokenizer = AutoTokenizer.from_pretrained(cfg.tokenizer_id)
 
+
+def formatting_func(examples):
+    texts = []
+    for msgs in examples["messages"]:
+        text = tokenizer.apply_chat_template(
+            msgs,
+            tokenize=False,
+            add_generation_prompt=False,
+        )
+        texts.append(text)
+    return texts
 
 def create_convo(sample):
     system_message = (
@@ -66,16 +79,12 @@ def create_convo(sample):
 def finetune(data, training_args):
     data = data.shuffle(seed=23)
     train_dataset = data.select(range(50000))
-    eval_dataset = data.select(range(50000, 50500))
 
     train_dataset = train_dataset.map(
         create_convo, remove_columns=train_dataset.features, batched=False
     )
-    eval_dataset = eval_dataset.map(
-        create_convo, remove_columns=eval_dataset.features, batched=False
-    )
 
-    tokenizer = AutoTokenizer.from_pretrained(cfg.tokenizer_id)
+
 
 
 
@@ -113,7 +122,7 @@ def finetune(data, training_args):
         peft_config=lora_config,
         tokenizer=tokenizer,
         train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
+        formatting_func= formatting_func,
     )
 
     trainer.train()
@@ -136,7 +145,7 @@ def main():
     training_args = NeuronTrainingArguments(
         output_dir="outputs",
         per_device_train_batch_size=1,
-        per_device_eval_batch_size=1,
+        
         gradient_accumulation_steps=8,
         num_train_epochs=1,
         logging_steps=10,
