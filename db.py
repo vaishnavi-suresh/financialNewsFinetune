@@ -7,6 +7,7 @@ from torch_xla.core.xla_model import is_master_ordinal
 from optimum.neuron.models.training import NeuronModelForCausalLM
 import torch
 import json
+from transformers import AutoTokenizer
 
 
 ds = load_dataset("boyiwei/newsqa_filtered_sorted", split="train")  # "validation" or "test" also available
@@ -28,15 +29,26 @@ def create_convo(sample):
         ]
     }
 
-def finetune():
-    ds = ds.shuffle(seed=23)
-    train_dataset = ds.select(range(50000))
-    eval_dataset = sd.select(range(50000, 50500))
+def finetune(data):
+    data = data.shuffle(seed=23)
+    train_dataset = data.select(range(50000))
+    eval_dataset = data.select(range(50000, 50500))
+
+    train_dataset = train_dataset.map(
+        create_convo, remove_columns=train_dataset.features, batched=False
+    )
+    eval_dataset = eval_dataset.map(
+        create_convo, remove_columns=eval_dataset.features, batched=False
+    )
+
+    tokenizer = AutoTokenizer.from_pretrained(model_config.tokenizer_id)
+
+
 
     model = NeuronModelForCausalLM.from_pretrained(
         model_config.model_id,
         trn_config=NeuronSFTConfig(
-            max_seq_length=6000,
+            max_seq_length=4096,
             packing=True,
             dataset_kwargs={
                 "add_special_tokens": False,
@@ -57,6 +69,32 @@ def finetune():
             "embed_tokens", "lm_head"                   
         ]
     )
+
+    args = training_args.to_dict()
+
+    sft_config = NeuronSFTConfig(
+        max_seq_length=4096,
+        packing=True,
+        **args,
+        dataset_kwargs={
+            "add_special_tokens": False,
+            "append_concat_token": True,
+        },
+    )
+
+    trainer = NeuronSFTTrainer(
+        args=sft_config,
+        model=model,
+        peft_config=lora_config,
+        tokenizer=tokenizer,
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
+    )
+
+    trainer.train()
+    trainer.save_model("finetuned_model")
+
+
 
 @dataclass
 class model_config:
