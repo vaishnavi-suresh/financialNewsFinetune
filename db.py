@@ -5,6 +5,7 @@ from optimum.neuron import NeuronHfArgumentParser as HfArgumentParser
 from optimum.neuron import NeuronSFTConfig, NeuronSFTTrainer, NeuronTrainingArguments
 from torch_xla.core.xla_model import is_master_ordinal
 from optimum.neuron.models.training import NeuronModelForCausalLM
+from datasets import load_dataset 
 import torch
 import json
 from transformers import AutoTokenizer
@@ -28,7 +29,7 @@ def create_convo(sample):
         ]
     }
 
-def finetune(data):
+def finetune(data, training_args):
     data = data.shuffle(seed=23)
     train_dataset = data.select(range(50000))
     eval_dataset = data.select(range(50000, 50500))
@@ -46,15 +47,8 @@ def finetune(data):
 
     model = NeuronModelForCausalLM.from_pretrained(
         model_config.model_id,
-        trn_config=NeuronSFTConfig(
-            max_seq_length=4096,
-            packing=True,
-            dataset_kwargs={
-                "add_special_tokens": False,
-                "append_concat_token": True,
-            },
-        ),
-        torch_dtype=torch.bfloat16,
+        training_args.trn_config, 
+        torch_dtype= torch.bfloat16,
         use_flash_attention_2=False,
     )
 
@@ -71,15 +65,7 @@ def finetune(data):
 
     args = training_args.to_dict()
 
-    sft_config = NeuronSFTConfig(
-        max_seq_length=4096,
-        packing=True,
-        **args,
-        dataset_kwargs={
-            "add_special_tokens": False,
-            "append_concat_token": True,
-        },
-    )
+    sft_config = NeuronSFTConfig(**training_args.to_dict())
 
     trainer = NeuronSFTTrainer(
         args=sft_config,
@@ -87,9 +73,6 @@ def finetune(data):
         peft_config=lora_config,
         tokenizer=tokenizer,
         train_dataset=train_dataset,
-        per_device_train_batch_size=1,  
-        per_device_eval_batch_size=1,
-        gradient_accumulation_steps=8,
         eval_dataset=eval_dataset,
     )
 
@@ -139,11 +122,22 @@ def main():
     print("TESTING create_convo FUNCTION")
     print("="*60)
     
+    training_args = NeuronTrainingArguments(
+        output_dir="outputs",
+        per_device_train_batch_size=1,
+        per_device_eval_batch_size=1,
+        gradient_accumulation_steps=8,
+        num_train_epochs=1,
+        logging_steps=10,
+        save_steps=1000,
+        bf16=True,
+    )
+    
     # Load one sample
     ds = load_dataset("boyiwei/newsqa_filtered_sorted", split="train")
     sample = ds[0]
 
-    finetune(ds[:5])
+    finetune(ds, training_args)
     
     
 
