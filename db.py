@@ -10,8 +10,7 @@ import json
 from transformers import AutoTokenizer
 
 
-ds = load_dataset("boyiwei/newsqa_filtered_sorted", split="train")  # "validation" or "test" also available
-print(ds[:1])
+
 
 def create_convo(sample):
     system_message = (
@@ -143,17 +142,10 @@ def main():
     # Load one sample
     ds = load_dataset("boyiwei/newsqa_filtered_sorted", split="train")
     sample = ds[0]
+
+    finetune(ds[:5])
     
-    # Apply formatting
-    formatted = create_convo(sample)
     
-    # Print as pretty JSON
-    print("\n📄 FORMATTED OUTPUT:\n")
-    print(json.dumps(formatted, indent=2))
-    
-    print("\n" + "="*60)
-    print("Function is working correctly!")
-    print("="*60)
 
 if __name__ == "__main__":
     main()
