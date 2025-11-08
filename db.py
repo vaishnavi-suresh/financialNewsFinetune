@@ -15,7 +15,7 @@ print(ds[:1])
 
 def create_convo(sample):
     system_message = (
-        "You are a financial news analyst assistant. Answer questions accurately based on the provided news context."
+        f"You are a financial news analyst assistant. Answer questions accurately based on the provided news context. This is the news article to reference: {sample['story_text']}"
     )
     return {
         #ADJUST BASED ON DBSCHEMA ON HUGGINGFACE
@@ -24,7 +24,7 @@ def create_convo(sample):
                 "role": "system",
                 "content": system_message,
             },
-            {"role": "user", "content": f'question: {sample["question"]} news source:{sample["story_text"]}'},
+            {"role": "user", "content": f'question: {sample["question"]}'},
             {"role": "assistant", "content": sample["answer"]},
         ]
     }
