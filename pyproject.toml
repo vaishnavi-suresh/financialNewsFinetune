@@ -1,0 +1,17 @@
+[project]
+name = "fin-news"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "None"}
+]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "datasets (>=4.4.1,<5.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
