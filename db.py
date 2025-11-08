@@ -27,7 +27,7 @@ def finetune():
 
     lora_config = LoraConfig(
         task_type=TaskType.CAUSAL_LM,
-        r=64,
+        r=32,
         lora_alpha=16,
         lora_dropout=0.1, 
         target_modules=[
